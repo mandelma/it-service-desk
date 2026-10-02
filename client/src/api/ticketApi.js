@@ -20,3 +20,26 @@ export const createTicket = async (ticketData, token) => {
     });
     return response.data;
 };
+
+export const updateTicket = async (ticketId, ticketData, token) => {
+    const response = await axios.patch(`${baseUrl}/${ticketId}`, ticketData, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    return response.data;
+}
+
+export const assignTicketToMe = async (ticketId, token) => {
+    const response = await axios.patch(
+        `${baseUrl}/${ticketId}/assign-to-me`,
+        {},
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
+
+    return response.data;
+};
