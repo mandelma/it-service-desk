@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { getTickets, createTicket, updateTicket, assignTicketToMe } from "../api/ticketApi.js";
+import { getTickets, createTicket, updateTicket, assignTicketToMe, deleteTicket } from "../api/ticketApi.js";
+import { getUsers } from "../api/userApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 function TicketPage() {
     const [tickets, setTickets] = useState([]);
+    const [ users, setUsers ] = useState([]);
 
     const [ title, setTitle ] = useState("");
     const [ description, setDescription ] = useState("");
@@ -11,6 +13,28 @@ function TicketPage() {
     const [ priority, setPriority ] = useState("MEDIUM");
 
     const { token, user, setUser, setToken } = useAuth();
+
+    useEffect(() => {
+        if (user?.role !== "ADMIN") {
+            return;
+        }
+
+        const loadUsers = async () => {
+            try {
+                const data = await getUsers(token);
+                setUsers(data);
+            } catch (error) {
+                console.error("USER ERROR:", error.message);
+            }
+        };
+
+        loadUsers();
+    }, [token, user]);
+
+    useEffect(() => {
+        console.log("USERS CHANGED:", users);
+    }, [users]);
+
 
     useEffect(() => {
         const loadTickets = async () => {
@@ -24,6 +48,7 @@ function TicketPage() {
 
         loadTickets();
     }, [token]);
+
 
     const handleCreateTicket = async (event) => {
         event.preventDefault();
@@ -65,6 +90,15 @@ function TicketPage() {
             setTickets((currentTickets) => currentTickets.map((ticket) => (ticket.id === ticketId ? updatedTicket : ticket)));
         } catch (error) {
             console.error("ASSIGN TICKET TO ME ERROR:", error.message);
+        }
+    };
+
+    const handleDeleteTicket = async (ticketId) => {
+        try {
+            await deleteTicket(ticketId, token);
+            setTickets((currentTickets) => currentTickets.filter((ticket) => ticket.id !== ticketId));
+        } catch (error) {
+            console.error("DELETE TICKET ERROR:", error.message);
         }
     };
 
@@ -146,8 +180,50 @@ function TicketPage() {
                         </button>
                     )}
 
-                    {user.role === "TECHNICIAN" &&
-                        ticket.assignedTo?.id === user.id && (
+
+
+                    {user.role === "ADMIN" && (
+                        <div>
+                            <label htmlFor={`technician-${ticket.id}`}>
+                                Assigned to
+                            </label>
+
+                            <select
+                                id={`technician-${ticket.id}`}
+                                value={ticket.assignedTo?.id || ""}
+                                onChange={(event) =>
+                                    handleUpdateTicket(
+                                        ticket.id,
+                                        {
+                                            assignedToId:
+                                                event.target.value || null
+                                        }
+                                    )
+                                }
+                            >
+                                <option value="">Unassigned</option>
+
+                                {users
+                                    .filter((user) => user.role === "TECHNICIAN")
+                                    .map((technician) => (
+                                        <option
+                                            key={technician.id}
+                                            value={technician.id}
+                                        >
+                                            {technician.name}
+                                        </option>
+                                    ))}
+                            </select>
+                        </div>
+                    )}
+
+
+
+                    
+
+                    {(user.role === "TECHNICIAN" &&
+                        ticket.assignedTo?.id === user.id) || 
+                        user.role === "ADMIN" && (
                             <div>
                                 <label htmlFor={`status-${ticket.id}`}>
                                     Status
@@ -172,6 +248,14 @@ function TicketPage() {
                             </div>
                         )
                     }
+
+                    {user.role === "ADMIN" && (
+                        <button
+                            onClick={() => handleDeleteTicket(ticket.id)}
+                        >
+                            Delete
+                        </button>
+                    )}
                 </div>
             ))}
         </div>

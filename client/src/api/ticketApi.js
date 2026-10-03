@@ -43,3 +43,11 @@ export const assignTicketToMe = async (ticketId, token) => {
 
     return response.data;
 };
+
+export const deleteTicket = async (ticketId, token) => {
+    await axios.delete(`${baseUrl}/${ticketId}`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+};
