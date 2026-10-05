@@ -4,6 +4,7 @@ import { getUsers } from "../api/userApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 import TicketCard from "../components/TicketCard.jsx";
+import TicketForm from "../components/TicketForm.jsx";
 
 function TicketPage() {
     const [tickets, setTickets] = useState([]);
@@ -112,7 +113,20 @@ function TicketPage() {
     return (
         
         <div>
-            <form onSubmit={handleCreateTicket}>
+            <TicketForm onCreate={async (ticketData) => {
+                try {
+                    const newTicket = await createTicket(ticketData, token);
+                    setTickets((currentTickets) => [
+                        newTicket,
+                        ...currentTickets
+                    ]);
+                } catch (error) {
+                    console.error("CREATE TICKET ERROR:", error.message);
+                }
+            }} />
+
+            
+            {/* <form onSubmit={handleCreateTicket}>
                 <h2>Create ticket</h2>
 
                 <div>
@@ -151,7 +165,7 @@ function TicketPage() {
                 <button type="submit">
                     Create ticket
                 </button>
-            </form>
+            </form> */}
             <h1>Tickets</h1>
 
             <p>Logged in as: {user.name}</p>
