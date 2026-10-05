@@ -3,6 +3,8 @@ import { getTickets, createTicket, updateTicket, assignTicketToMe, deleteTicket 
 import { getUsers } from "../api/userApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
+import TicketCard from "../components/TicketCard.jsx";
+
 function TicketPage() {
     const [tickets, setTickets] = useState([]);
     const [ users, setUsers ] = useState([]);
@@ -159,105 +161,17 @@ function TicketPage() {
             </button>
 
             {tickets.map((ticket) => (
-                <div key={ticket.id}>
-                    <h2>{ticket.title}</h2>
-                    <p>{ticket.description}</p>
-                    <p>Status: {ticket.status}</p>
-                    <p>Priority: {ticket.priority}</p>
-
-                    <p>
-                        Assigned to:{" "}
-                        {ticket.assignedTo
-                            ? ticket.assignedTo.name
-                            : "Unassigned"}
-                    </p>
-
-                    {user.role === "TECHNICIAN" && !ticket.assignedTo && (
-                        <button
-                            onClick={() => handleAssignTicketToMe(ticket.id)}
-                        >
-                            Assign to me
-                        </button>
-                    )}
-
-
-
-                    {user.role === "ADMIN" && (
-                        <div>
-                            <label htmlFor={`technician-${ticket.id}`}>
-                                Assigned to
-                            </label>
-
-                            <select
-                                id={`technician-${ticket.id}`}
-                                value={ticket.assignedTo?.id || ""}
-                                onChange={(event) =>
-                                    handleUpdateTicket(
-                                        ticket.id,
-                                        {
-                                            assignedToId:
-                                                event.target.value || null
-                                        }
-                                    )
-                                }
-                            >
-                                <option value="">Unassigned</option>
-
-                                {users
-                                    .filter((user) => user.role === "TECHNICIAN")
-                                    .map((technician) => (
-                                        <option
-                                            key={technician.id}
-                                            value={technician.id}
-                                        >
-                                            {technician.name}
-                                        </option>
-                                    ))}
-                            </select>
-                        </div>
-                    )}
-
-
-
-                    
-
-                    {(user.role === "TECHNICIAN" &&
-                        ticket.assignedTo?.id === user.id) || 
-                        user.role === "ADMIN" && (
-                            <div>
-                                <label htmlFor={`status-${ticket.id}`}>
-                                    Status
-                                </label>
-
-                                <select
-                                    id={`status-${ticket.id}`}
-                                    value={ticket.status}
-                                    onChange={(event) =>
-                                        handleUpdateTicket(
-                                            ticket.id,
-                                            { status: event.target.value }
-                                        )
-                                    }
-                                >
-                                    <option value="OPEN">Open</option>
-                                    <option value="IN_PROGRESS">In Progress</option>
-                                    <option value="WAITING">Waiting</option>
-                                    <option value="RESOLVED">Resolved</option>
-                                    <option value="CLOSED">Closed</option>
-                                </select>
-                            </div>
-                        )
-                    }
-
-                    {user.role === "ADMIN" && (
-                        <button
-                            onClick={() => handleDeleteTicket(ticket.id)}
-                        >
-                            Delete
-                        </button>
-                    )}
-                </div>
+                <TicketCard 
+                    key={ticket.id} 
+                    ticket={ticket} 
+                    user={user}
+                    users={users}
+                    onDelete={handleDeleteTicket}
+                    onAssignTicketToMe={handleAssignTicketToMe}
+                    onUpdate={handleUpdateTicket}
+                />
             ))}
+
         </div>
     );
 }
