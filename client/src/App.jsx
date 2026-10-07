@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import LoginPage from "./pages/LoginPage.jsx";
 import TicketPage from "./pages/TicketPage.jsx";
+import TicketDetailPage from "./pages/TicketDetailPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function App() {
@@ -23,6 +24,15 @@ function App() {
         element={
           user
             ? <TicketPage />
+            : <Navigate to="/login" replace />
+        }
+      />
+
+      <Route
+        path="/tickets/:id"
+        element={
+          user
+            ? <TicketDetailPage />
             : <Navigate to="/login" replace />
         }
       />

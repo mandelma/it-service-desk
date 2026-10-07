@@ -9,6 +9,14 @@ export const getTickets = async () => {
     return response.data;
 };
 
+export const getTicketById = async (ticketId) => {
+    const response = await apiClient.get(
+        `/tickets/${ticketId}`
+    );
+
+    return response.data;
+};
+
 export const createTicket = async (ticketData) => {
     const response = await apiClient.post("/tickets", ticketData);
     return response.data;

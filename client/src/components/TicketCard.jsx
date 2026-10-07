@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 const TicketCard = ({ 
     ticket,
     user,
@@ -8,7 +10,11 @@ const TicketCard = ({
  }) => {
     return (
         <div>
-            <h2>{ticket.title} xxx</h2>
+            <h2>
+                <Link to={`/tickets/${ticket.id}`}>
+                    {ticket.title}
+                </Link>
+            </h2>
             <p>{ticket.description}</p>
             <p>Status: {ticket.status}</p>
             <p>Priority: {ticket.priority}</p>
