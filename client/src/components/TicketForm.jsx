@@ -5,27 +5,40 @@ const TicketForm = ({onCreate}) => {
     const [description, setDescription] = useState("");
     const [priority, setPriority] = useState("MEDIUM");
 
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(false);
+
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        const ticketData = {
-            title,
-            description,
-            priority,
-        };
+        setError(null);
+        setLoading(true);
 
-        const success = await onCreate(ticketData);
+        try {
+            const ticketData = {
+                title,
+                description,
+                priority,
+            };
 
-        if (success) {
-            setTitle("");
-            setDescription("");
-            setPriority("MEDIUM");
+            const result = await onCreate(ticketData);
+
+            if (result.success) {
+                setTitle("");
+                setDescription("");
+                setPriority("MEDIUM");
+            } else {
+                setError(result.message);
+            }
+        } finally {
+            setLoading(false);
         }
-    }
+    };
 
     return (
         <form  onSubmit={handleSubmit}>
-            
+            {error && <p style={{ color: "red" }}>{error}</p>}
+
             <div>
                 <label htmlFor="title">Title</label>
                 <input
@@ -59,8 +72,8 @@ const TicketForm = ({onCreate}) => {
                 </select>
             </div>
 
-            <button type="submit">
-                Create ticket
+            <button type="submit" disabled={loading}>
+                {loading ? "Creating ticket..." : "Create ticket"}
             </button>
         </form>
     )

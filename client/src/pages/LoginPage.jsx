@@ -9,11 +9,17 @@ function LoginPage() {
 
     const { user, setUser, setToken } = useAuth();
 
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(false);
+
     console.log("EMAIL:", email);
     console.log("PASSWORD:", password);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
+
+        setError(null);
+        setLoading(true);
         
         try {
             const data = await login(email, password);
@@ -27,6 +33,9 @@ function LoginPage() {
             console.log("LOGIN SUCCESS:", data);
         } catch (error) {
             console.error("LOGIN ERROR:", error.message);
+            setError(error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -56,8 +65,15 @@ function LoginPage() {
                     />
                 </div>
 
-                <button type="submit">
-                    Login
+                {error && (
+                    <p>{error}</p>
+                )}
+
+                <button 
+                    type="submit"
+                    disabled={loading}
+                >
+                    {loading ? "Logging in..." : "Login"}
                 </button>
             </form>
 

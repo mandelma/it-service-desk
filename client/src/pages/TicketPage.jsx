@@ -56,15 +56,7 @@ function TicketPage() {
     }, [token]);
 
 
-    const handleCreateTicket = async (event) => {
-        event.preventDefault();
-
-        const ticketData = {
-            title,
-            description,
-            priority,
-        };
-
+    const handleCreateTicket = async (ticketData) => {
         try {
             const newTicket = await createTicket(ticketData);
 
@@ -73,11 +65,28 @@ function TicketPage() {
                 ...currentTickets
             ]);
 
-            setTitle("");
-            setDescription("");
-            setPriority("MEDIUM");
+            return {
+                success: true
+            };
         } catch (error) {
-            console.error("CREATE TICKET ERROR:", error.message);
+            console.error(
+                "CREATE TICKET ERROR:",
+                error.message
+            );
+
+            const responseData = error.response?.data;
+
+            const message =
+                responseData?.errors
+                    ?.map((error) => error.message)
+                    .join(". ") ||
+                responseData?.message ||
+                "Failed to create ticket";
+
+            return {
+                success: false,
+                message
+            };
         }
     };
 
@@ -120,7 +129,7 @@ function TicketPage() {
     return (
         
         <div>
-            <TicketForm onCreate={async (ticketData) => {
+            {/* <TicketForm onCreate={async (ticketData) => {
                 try {
                     const newTicket = await createTicket(ticketData);
                     setTickets((currentTickets) => [
@@ -130,7 +139,12 @@ function TicketPage() {
                 } catch (error) {
                     console.error("CREATE TICKET ERROR:", error.message);
                 }
-            }} />
+            }} /> */}
+
+            <TicketForm onCreate={handleCreateTicket}
+                /* title={title}
+                setTitle={setTitle}  */    
+            />
 
             <h1>Tickets</h1>
 
