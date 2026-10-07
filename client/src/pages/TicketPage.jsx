@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getTickets, createTicket, updateTicket, assignTicketToMe, deleteTicket } from "../api/ticketApi.js";
 import { getUsers } from "../api/userApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useNavigate } from "react-router-dom";
 
 import TicketCard from "../components/TicketCard.jsx";
 import TicketForm from "../components/TicketForm.jsx";
@@ -14,6 +15,8 @@ function TicketPage() {
     const [ description, setDescription ] = useState("");
     const [ status, setStatus ] = useState("open");
     const [ priority, setPriority ] = useState("MEDIUM");
+
+    const navigate = useNavigate();
 
     const { token, user, setUser, setToken } = useAuth();
 
@@ -42,7 +45,7 @@ function TicketPage() {
     useEffect(() => {
         const loadTickets = async () => {
             try {
-                const data = await getTickets(token);
+                const data = await getTickets();
                 setTickets(data);
             } catch (error) {
                 console.error("TICKET ERROR:", error.message);
@@ -63,7 +66,7 @@ function TicketPage() {
         };
 
         try {
-            const newTicket = await createTicket(ticketData, token);
+            const newTicket = await createTicket(ticketData);
 
             setTickets((currentTickets) => [
                 newTicket,
@@ -80,7 +83,7 @@ function TicketPage() {
 
     const handleUpdateTicket = async (ticketId, updatedData) => {
         try {
-            const updatedTicket = await updateTicket(ticketId, updatedData, token);
+            const updatedTicket = await updateTicket(ticketId, updatedData);
             setTickets((currentTickets) => currentTickets.map((ticket) => (ticket.id === ticketId ? updatedTicket : ticket)));
         } catch (error) {
             console.error("UPDATE TICKET ERROR:", error.message);
@@ -89,7 +92,7 @@ function TicketPage() {
 
     const handleAssignTicketToMe = async (ticketId) => {
         try {
-            const updatedTicket = await assignTicketToMe(ticketId, token);  
+            const updatedTicket = await assignTicketToMe(ticketId);  
             setTickets((currentTickets) => currentTickets.map((ticket) => (ticket.id === ticketId ? updatedTicket : ticket)));
         } catch (error) {
             console.error("ASSIGN TICKET TO ME ERROR:", error.message);
@@ -98,7 +101,7 @@ function TicketPage() {
 
     const handleDeleteTicket = async (ticketId) => {
         try {
-            await deleteTicket(ticketId, token);
+            await deleteTicket(ticketId);
             setTickets((currentTickets) => currentTickets.filter((ticket) => ticket.id !== ticketId));
         } catch (error) {
             console.error("DELETE TICKET ERROR:", error.message);
@@ -108,6 +111,10 @@ function TicketPage() {
     const handleLogout = () => {
         setUser(null);
         setToken(null);
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+
+        navigate("/login", { replace: true });
     }
 
     return (
@@ -115,7 +122,7 @@ function TicketPage() {
         <div>
             <TicketForm onCreate={async (ticketData) => {
                 try {
-                    const newTicket = await createTicket(ticketData, token);
+                    const newTicket = await createTicket(ticketData);
                     setTickets((currentTickets) => [
                         newTicket,
                         ...currentTickets
@@ -125,47 +132,6 @@ function TicketPage() {
                 }
             }} />
 
-            
-            {/* <form onSubmit={handleCreateTicket}>
-                <h2>Create ticket</h2>
-
-                <div>
-                    <label htmlFor="title">Title</label>
-                    <input
-                        id="title"
-                        type="text"
-                        value={title}
-                        onChange={(event) => setTitle(event.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="description">Description</label>
-                    <textarea
-                        id="description"
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="priority">Priority</label>
-                    <select
-                        id="priority"
-                        value={priority}
-                        onChange={(event) => setPriority(event.target.value)}
-                    >
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="HIGH">High</option>
-                        <option value="CRITICAL">Critical</option>
-                    </select>
-                </div>
-
-                <button type="submit">
-                    Create ticket
-                </button>
-            </form> */}
             <h1>Tickets</h1>
 
             <p>Logged in as: {user.name}</p>

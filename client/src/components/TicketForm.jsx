@@ -25,16 +25,7 @@ const TicketForm = ({onCreate}) => {
 
     return (
         <form  onSubmit={handleSubmit}>
-            <div>
-                <label htmlFor="title">Title</label>
-                <input
-                    id="title"
-                    type="text"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                />
-            </div>  
-        
+            
             <div>
                 <label htmlFor="title">Title</label>
                 <input
@@ -74,3 +65,5 @@ const TicketForm = ({onCreate}) => {
         </form>
     )
 }
+
+export default TicketForm;
