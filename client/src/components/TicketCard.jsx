@@ -78,9 +78,9 @@ const TicketCard = ({
             )}
 
 
-            {(user.role === "TECHNICIAN" &&
+            {((user.role === "TECHNICIAN" &&
                 ticket.assignedTo?.id === user.id) ||
-                user.role === "ADMIN" && (
+                user.role === "ADMIN") && (
                     <div>
                         <label htmlFor={`status-${ticket.id}`}>
                             Status
