@@ -182,6 +182,14 @@ export const createTicket = async (
             return;
         }
 
+        // Ainult ADMIN võib pileti loomisel tehniku määrata
+        if (assignedToId != null && req.user?.role !== "ADMIN") {
+            res.status(403).json({
+                message: "Only admins can assign tickets during creation",
+            });
+            return;
+        }
+
         if (assignedToId) {
             const assignedUser = await prisma.user.findUnique({
                 where: {
@@ -319,6 +327,20 @@ export const updateTicket = async (
             return;
         }
 
+        // CLOSED piletile ei saa uut tehnikut määrata,
+        // kui piletit sama päringuga uuesti ei avata.
+        if (
+            existingTicket.status === "CLOSED" &&
+            data.assignedToId != null &&
+            data.assignedToId !== existingTicket.assignedToId &&
+            data.status !== "OPEN"
+        ) {
+            res.status(409).json({
+                message: "Closed ticket must be reopened before assignment",
+            });
+            return;
+        }
+
         if (
             user.role === "TECHNICIAN" &&
             existingTicket.assignedToId !== user.id
@@ -431,6 +453,7 @@ export const assignTicketToMe = async (
     res: Response
 ): Promise<void> => {
     try {
+        // 1. Kontrollime pileti ID korrektsust
         const idResult = ticketIdSchema.safeParse(req.params);
 
         if (!idResult.success) {
@@ -438,57 +461,119 @@ export const assignTicketToMe = async (
                 message: "Invalid ticket ID",
                 errors: idResult.error.issues,
             });
-
             return;
         }
 
+        // 2. Kontrollime autentimist
         const user = req.user;
 
         if (!user) {
             res.status(401).json({
                 message: "Authentication required",
             });
-
             return;
         }
 
         const { id } = idResult.data;
 
+        // 3. Otsime pileti andmebaasist
         const existingTicket = await prisma.ticket.findUnique({
-            where: {
-                id,
-            },
+            where: { id },
         });
 
         if (!existingTicket) {
             res.status(404).json({
                 message: "Ticket not found",
             });
-
             return;
         }
 
+        // 4. Kui pilet on määratud teisele tehnikule,
+        // ei saa praegune tehnik seda endale võtta.
         if (
-            existingTicket.assignedToId &&
+            existingTicket.assignedToId !== null &&
             existingTicket.assignedToId !== user.id
         ) {
             res.status(409).json({
                 message: "Ticket is already assigned to another technician",
             });
-
             return;
         }
 
-        const updatedTicket = await prisma.ticket.update({
+        // 5. Kui pilet on juba samale tehnikule määratud,
+        // tagastame pileti ilma selle staatust muutmata.
+        if (existingTicket.assignedToId === user.id) {
+            const ticket = await prisma.ticket.findUnique({
+                where: { id },
+                include: {
+                    createdBy: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            role: true,
+                        },
+                    },
+                    assignedTo: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            role: true,
+                        },
+                    },
+                },
+            });
+
+            res.status(200).json(ticket);
+            return;
+        }
+
+        // 6. Pilet on vaba.
+        // Kasutame tingimuslikku updateMany() operatsiooni,
+        // et vältida kahe tehniku samaaegset määramist.
+        const result = await prisma.ticket.updateMany({
             where: {
                 id,
+                assignedToId: null,
+                status: "OPEN",
             },
-
             data: {
                 assignedToId: user.id,
                 status: "IN_PROGRESS",
             },
+        });
 
+        // 7. Kui count === 0, jõudis keegi teine
+        // pileti vahepeal endale määrata.
+        if (result.count === 0) {
+            const currentTicket = await prisma.ticket.findUnique({
+                where: { id },
+            });
+
+            if (!currentTicket) {
+                res.status(404).json({
+                    message: "Ticket not found",
+                });
+                return;
+            }
+
+            if (currentTicket.assignedToId !== null) {
+                res.status(409).json({
+                    message: "Ticket is already assigned to another technician",
+                });
+                return;
+            }
+
+            res.status(409).json({
+                message: "Only OPEN tickets can be assigned",
+            });
+            return;
+        }
+
+        // 8. Loeme uuendatud pileti koos seotud kasutajatega
+        const updatedTicket = await prisma.ticket.findUnique({
+            where: { id },
             include: {
                 createdBy: {
                     select: {
@@ -498,7 +583,6 @@ export const assignTicketToMe = async (
                         role: true,
                     },
                 },
-
                 assignedTo: {
                     select: {
                         id: true,
@@ -510,7 +594,9 @@ export const assignTicketToMe = async (
             },
         });
 
+        // 9. Tagastame uuendatud pileti
         res.status(200).json(updatedTicket);
+
     } catch (error) {
         console.error("ASSIGN TICKET ERROR:", error);
 

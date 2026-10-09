@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch index.ts",
     "start": "tsx index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest --config vitest.config.ts"
   },
   "keywords": [],
   "author": "",
@@ -21,7 +21,6 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0",
-    "prisma": "^7.10.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -30,8 +29,12 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.5.1",
-    "nodemon": "^3.1.14",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^5.0.3",
+    "prisma": "^7.10.0",
+    "supertest": "^7.3.1",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   }
 }
