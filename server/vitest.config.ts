@@ -4,7 +4,7 @@ import { config } from "dotenv";
 export default defineConfig(() => {
     config({
         path: ".env.test",
-        override: true,
+        override: false,
     });
 
     const databaseUrl = process.env.DATABASE_URL;

@@ -4,10 +4,11 @@
 import { config } from "dotenv";
 import { defineConfig } from "prisma/config";
 
+const isTest = process.env.NODE_ENV === "test";
+
 config({
-  path: process.env.NODE_ENV === "test"
-    ? ".env.test"
-    : ".env",
+  path: isTest ? ".env.test" : ".env",
+  override: false,
 });
 
 export default defineConfig({
@@ -16,6 +17,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env.DATABASE_URL,
   },
 });
