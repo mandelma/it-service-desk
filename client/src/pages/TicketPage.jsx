@@ -1,24 +1,48 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getTickets, createTicket, updateTicket, assignTicketToMe, deleteTicket } from "../api/ticketApi.js";
 import { getUsers } from "../api/userApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import { useNavigate } from "react-router-dom";
+
 
 import TicketCard from "../components/TicketCard.jsx";
 import TicketForm from "../components/TicketForm.jsx";
 
+import {
+    Box,
+    Typography,
+    Divider,
+    TextField,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Stack,
+    Button,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+} from "@mui/material";
+
 function TicketPage() {
     const [tickets, setTickets] = useState([]);
     const [ users, setUsers ] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [statusFilter, setStatusFilter] = useState("ALL");
+    const [priorityFilter, setPriorityFilter] = useState("ALL");
+    const [sortOrder, setSortOrder] = useState("newest");
+    const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-    const [ title, setTitle ] = useState("");
+    const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+
+    const newTicketButtonRef = useRef(null);
+
+    /* const [ title, setTitle ] = useState("");
     const [ description, setDescription ] = useState("");
     const [ status, setStatus ] = useState("open");
-    const [ priority, setPriority ] = useState("MEDIUM");
+    const [ priority, setPriority ] = useState("MEDIUM"); */
 
-    const navigate = useNavigate();
-
-    const { token, user, setUser, setToken } = useAuth();
+    const { token, user } = useAuth();
 
     useEffect(() => {
         if (user?.role !== "ADMIN") {
@@ -37,9 +61,9 @@ function TicketPage() {
         loadUsers();
     }, [token, user]);
 
-    useEffect(() => {
+    /* useEffect(() => {
         console.log("USERS CHANGED:", users);
-    }, [users]);
+    }, [users]); */
 
 
     useEffect(() => {
@@ -55,15 +79,22 @@ function TicketPage() {
         loadTickets();
     }, [token]);
 
+    useEffect(() => {
+        console.log("IS CREATING TICKET:", isCreatingTicket);
+    }, [isCreatingTicket]);
 
     const handleCreateTicket = async (ticketData) => {
         try {
             const newTicket = await createTicket(ticketData);
 
+            console.log("TICKET CREATED:", newTicket);
+
             setTickets((currentTickets) => [
                 newTicket,
                 ...currentTickets
             ]);
+
+            // setCreateDialogOpen(false);
 
             return {
                 success: true
@@ -117,56 +148,308 @@ function TicketPage() {
         }
     };
 
-    const handleLogout = () => {
-        setUser(null);
-        setToken(null);
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
+    const filteredTickets = tickets.filter((ticket) => {
+        const search = searchTerm.toLowerCase().trim();
 
-        navigate("/login", { replace: true });
-    }
+        const title = ticket.title.toLowerCase();
+        const description = (ticket.description || "").toLowerCase();
+
+        const matchesSearch =
+            title.includes(search) ||
+            description.includes(search);
+
+        const matchesStatus =
+            statusFilter === "ALL" ||
+            ticket.status === statusFilter;
+
+        const matchesPriority =
+            priorityFilter === "ALL" ||
+            ticket.priority === priorityFilter;
+
+        return matchesSearch && matchesStatus && matchesPriority;
+    });
+
+    const priorityOrder = {
+        LOW: 1,
+        MEDIUM: 2,
+        HIGH: 3,
+        CRITICAL: 4,
+    };
+
+    const sortedTickets = [...filteredTickets].sort((a, b) => {
+        // Kõrgema prioriteediga piletid eespool
+        if (sortOrder === "priority-high") {
+            return (
+                priorityOrder[b.priority] -
+                priorityOrder[a.priority]
+            );
+        }
+
+        // Madalama prioriteediga piletid eespool
+        if (sortOrder === "priority-low") {
+            return (
+                priorityOrder[a.priority] -
+                priorityOrder[b.priority]
+            );
+        }
+
+        // Kuupäeva järgi sorteerimine
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+
+        if (sortOrder === "newest") {
+            return dateB - dateA;
+        }
+
+        return dateA - dateB;
+    });
+
+    const handleClearFilters = () => {
+        setSearchTerm("");
+        setStatusFilter("ALL");
+        setPriorityFilter("ALL");
+        setSortOrder("newest");
+    };
+
+    const hasActiveFilters =
+        searchTerm !== "" ||
+        statusFilter !== "ALL" ||
+        priorityFilter !== "ALL" ||
+        sortOrder !== "newest";
+
+
+    const handleOpenCreateDialog = () => {
+        setCreateDialogOpen(true);
+    };
+
+    const handleCloseCreateDialog = () => {
+        if (isCreatingTicket) {
+            return;
+        }
+
+        setCreateDialogOpen(false);
+    };
 
     return (
-        
-        <div>
-            {/* <TicketForm onCreate={async (ticketData) => {
-                try {
-                    const newTicket = await createTicket(ticketData);
-                    setTickets((currentTickets) => [
-                        newTicket,
-                        ...currentTickets
-                    ]);
-                } catch (error) {
-                    console.error("CREATE TICKET ERROR:", error.message);
-                }
-            }} /> */}
+        <Box>
 
-            <TicketForm onCreate={handleCreateTicket}
-                /* title={title}
-                setTitle={setTitle}  */    
-            />
+            {/* Lehe päis */}
+            <Box sx={{ mb: 3 }}>
+                <Typography
+                    variant="h4"
+                    component="h1"
+                    sx={{ fontWeight: 600 }}
+                >
+                    Tickets
+                </Typography>
 
-            <h1>Tickets</h1>
+                <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 1 }}
+                >
+                    Manage and track IT support requests
+                </Typography>
+            </Box>
 
-            <p>Logged in as: {user.name}</p>
+            <Divider sx={{ mb: 3 }} />
 
-            <button onClick={handleLogout}>
-                Logout
-            </button>
+            {/* Uue pileti loomine */}
+            <Box sx={{ mb: 3 }}>
+                <Button
+                    ref={newTicketButtonRef}
+                    variant="contained"
+                    onClick={handleOpenCreateDialog}
+                >
+                    + New ticket
+                </Button>
+            </Box>
+           
+            <Dialog
+                open={createDialogOpen}
+                onClose={handleCloseCreateDialog}
+                
+                fullWidth
+                maxWidth="sm"
+            >
+                <DialogContent sx={{ pt: 3 }}>
+                    {createDialogOpen && (
+                        <TicketForm 
+                            onCreate={handleCreateTicket} 
+                            onLoadingChange={setIsCreatingTicket}
+                            onSuccess={() => {
+                                setCreateDialogOpen(false);
 
-            {tickets.map((ticket) => (
-                <TicketCard 
-                    key={ticket.id} 
-                    ticket={ticket} 
-                    user={user}
-                    users={users}
-                    onDelete={handleDeleteTicket}
-                    onAssignTicketToMe={handleAssignTicketToMe}
-                    onUpdate={handleUpdateTicket}
-                />
-            ))}
+                                setTimeout(() => {
+                                    newTicketButtonRef.current?.blur();
+                                }, 0);
+                            }}
+                        />
+                    )}
+                </DialogContent>
 
-        </div>
+                <DialogActions>
+                    <Button 
+                        onClick={handleCloseCreateDialog}
+                        disabled={isCreatingTicket}
+                    >
+                        Cancel
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Box sx={{ mt: 4, mb: 3 }}>
+                <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={2}
+                    useFlexGap
+                    sx={{
+                        flexWrap: "wrap",
+                        alignItems: {
+                            xs: "stretch",
+                            md: "center"
+                        }
+                    }}
+                >
+                    <TextField
+                        label="Search tickets"
+                        placeholder="Search by title or description..."
+                        variant="outlined"
+                        size="small"
+                        fullWidth
+                        value={searchTerm}
+                        onChange={(event) =>
+                            setSearchTerm(event.target.value)
+                        }
+                    />
+
+                    <FormControl
+                        size="small"
+                        sx={{ minWidth: { md: 180 } }}
+                    >
+                        <InputLabel id="status-filter-label">
+                            Status
+                        </InputLabel>
+
+                        <Select
+                            labelId="status-filter-label"
+                            value={statusFilter}
+                            label="Status"
+                            onChange={(event) =>
+                                setStatusFilter(event.target.value)
+                            }
+                        >
+                            <MenuItem value="ALL">All statuses</MenuItem>
+                            <MenuItem value="OPEN">Open</MenuItem>
+                            <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
+                            <MenuItem value="WAITING">Waiting</MenuItem>
+                            <MenuItem value="RESOLVED">Resolved</MenuItem>
+                            <MenuItem value="CLOSED">Closed</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    <FormControl
+                        size="small"
+                        sx={{ minWidth: { md: 180 } }}
+                    >
+                        <InputLabel id="priority-filter-label">
+                            Priority
+                        </InputLabel>
+
+                        <Select
+                            labelId="priority-filter-label"
+                            value={priorityFilter}
+                            label="Priority"
+                            onChange={(event) =>
+                                setPriorityFilter(event.target.value)
+                            }
+                        >
+                            <MenuItem value="ALL">All priorities</MenuItem>
+                            <MenuItem value="LOW">Low</MenuItem>
+                            <MenuItem value="MEDIUM">Medium</MenuItem>
+                            <MenuItem value="HIGH">High</MenuItem>
+                            <MenuItem value="CRITICAL">Critical</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    <FormControl
+                        size="small"
+                        sx={{ minWidth: { md: 180 } }}
+                    >
+                        <InputLabel id="sort-order-label">
+                            Sort by
+                        </InputLabel>
+
+                        <Select
+                            labelId="sort-order-label"
+                            value={sortOrder}
+                            label="Sort by"
+                            onChange={(event) =>
+                                setSortOrder(event.target.value)
+                            }
+                        >
+                            <MenuItem value="newest">
+                                Newest first
+                            </MenuItem>
+
+                            <MenuItem value="oldest">
+                                Oldest first
+                            </MenuItem>
+
+                            <MenuItem value="priority-high">
+                                Highest priority first
+                            </MenuItem>
+
+                            <MenuItem value="priority-low">
+                                Lowest priority first
+                            </MenuItem>
+                        </Select>
+                    </FormControl>
+                    <Button
+                        variant="outlined"
+                        color="inherit"
+                        onClick={handleClearFilters}
+                        disabled={!hasActiveFilters}
+                        sx={{
+                            whiteSpace: "nowrap",
+                            height: 40,
+                        }}
+                    >
+                        Clear filters
+                    </Button>
+                </Stack>
+            </Box>
+
+            <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mb: 2 }}
+            >
+                Showing {sortedTickets.length} of {tickets.length} tickets
+            </Typography>
+
+            {/* Piletite loend */}
+            <Box sx={{ mt: 4 }}>
+                {filteredTickets.length === 0 ? (
+                    <Typography color="text.secondary">
+                        No tickets found.
+                    </Typography>
+                ) : (
+                    sortedTickets.map((ticket) => (
+                        <TicketCard
+                            key={ticket.id}
+                            ticket={ticket}
+                            user={user}
+                            users={users}
+                            onDelete={handleDeleteTicket}
+                            onAssignTicketToMe={handleAssignTicketToMe}
+                            onUpdate={handleUpdateTicket}
+                        />
+                    ))
+                )}
+            </Box>
+
+        </Box>
     );
 }
 

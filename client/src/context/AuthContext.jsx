@@ -15,11 +15,22 @@ export function AuthProvider({ children }) {
         return localStorage.getItem("token");
     });
 
+    const logout = () => {
+        // Eemaldame salvestatud kasutaja ja JWT tokeni
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+
+        // Tühjendame Reacti oleku
+        setUser(null);
+        setToken(null);
+    };
+
     const value = {
         user,
         setUser,
         token,
         setToken,
+        logout
     };
 
     return (

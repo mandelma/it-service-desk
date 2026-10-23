@@ -44,6 +44,7 @@ model User {
 
   createdTickets  Ticket[] @relation("CreatedTickets")
   assignedTickets Ticket[] @relation("AssignedTickets")
+  comments TicketComment[]
 }
 
 model Ticket {
@@ -61,4 +62,21 @@ model Ticket {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  comments TicketComment[]
+}
+
+model TicketComment {
+  id      String @id @default(uuid()) @db.Uuid
+  content String
+
+  ticketId String @db.Uuid
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId String @db.Uuid
+  author   User   @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ticketId, createdAt])
 }

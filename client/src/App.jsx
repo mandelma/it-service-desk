@@ -1,15 +1,18 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 
+import AppLayout from "./components/layout/AppLayout.jsx";
+
 import LoginPage from "./pages/LoginPage.jsx";
 import TicketPage from "./pages/TicketPage.jsx";
 import TicketDetailPage from "./pages/TicketDetailPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function App() {
-
   const { user } = useAuth();
+
   return (
     <Routes>
+      {/* Avalik sisselogimisleht */}
       <Route
         path="/login"
         element={
@@ -19,24 +22,13 @@ function App() {
         }
       />
 
-      <Route
-        path="/tickets"
-        element={
-          user
-            ? <TicketPage />
-            : <Navigate to="/login" replace />
-        }
-      />
+      {/* Kaitstud leheküljed ühise paigutusega */}
+      <Route element={<AppLayout />}>
+        <Route path="/tickets" element={<TicketPage />} />
+        <Route path="/tickets/:id" element={<TicketDetailPage />} />
+      </Route>
 
-      <Route
-        path="/tickets/:id"
-        element={
-          user
-            ? <TicketDetailPage />
-            : <Navigate to="/login" replace />
-        }
-      />
-
+      {/* Tundmatud aadressid */}
       <Route
         path="*"
         element={
