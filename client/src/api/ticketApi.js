@@ -39,3 +39,24 @@ export const assignTicketToMe = async (ticketId) => {
 export const deleteTicket = async (ticketId) => {
     await apiClient.delete(`/tickets/${ticketId}`);
 };
+
+// Konkreetse pileti kommentaaride laadimine
+export const getTicketComments = async (ticketId) => {
+    const response = await apiClient.get(
+        `/tickets/${ticketId}/comments`
+    );
+
+    return response.data;
+};
+
+// Uue kommentaari lisamine
+export const createTicketComment = async (ticketId, content) => {
+    const response = await apiClient.post(
+        `/tickets/${ticketId}/comments`,
+        {
+            content,
+        }
+    );
+
+    return response.data;
+};

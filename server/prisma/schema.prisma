@@ -42,9 +42,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  createdTickets  Ticket[] @relation("CreatedTickets")
-  assignedTickets Ticket[] @relation("AssignedTickets")
-  comments TicketComment[]
+  createdTickets  Ticket[]         @relation("CreatedTickets")
+  assignedTickets Ticket[]         @relation("AssignedTickets")
+  comments        TicketComment[]
+  activities      TicketActivity[]
 }
 
 model Ticket {
@@ -62,7 +63,11 @@ model Ticket {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  comments TicketComment[]
+
+  version Int @default(0)
+
+  comments   TicketComment[]
+  activities TicketActivity[]
 }
 
 model TicketComment {
@@ -77,6 +82,25 @@ model TicketComment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([ticketId, createdAt])
+}
+
+model TicketActivity {
+  id String @id @default(uuid()) @db.Uuid
+
+  ticketId String @db.Uuid
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  actorId String? @db.Uuid
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  action   String
+  field    String?
+  oldValue String?
+  newValue String?
+
+  createdAt DateTime @default(now())
 
   @@index([ticketId, createdAt])
 }

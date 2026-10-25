@@ -60,6 +60,11 @@ export const updateTicketSchema = z.object({
     .uuid("Invalid assigned user ID")
     .nullable()
     .optional(),
+
+  version: z
+    .number()
+    .int("Version must be an integer")
+    .nonnegative("Version cannot be negative"),
 });
 
 export type UpdateTicketBody =

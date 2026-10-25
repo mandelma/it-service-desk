@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getTicketById, updateTicket, assignTicketToMe } from "../api/ticketApi.js";
+import {
+    getTicketById,
+    updateTicket,
+    assignTicketToMe,
+    getTicketComments,
+    createTicketComment
+} from "../api/ticketApi.js";
 
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -18,7 +24,8 @@ import {
     Select,
     MenuItem,
     Alert,
-    CircularProgress
+    CircularProgress,
+    TextField
 } from "@mui/material";
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -37,6 +44,14 @@ const TicketDetailPage = () => {
 
     const [assigning, setAssigning] = useState(false);
     const [assignError, setAssignError] = useState(null);
+
+    const [comments, setComments] = useState([]);
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [commentsError, setCommentsError] = useState(null);
+
+    const [newComment, setNewComment] = useState("");
+    const [sendingComment, setSendingComment] = useState(false);
+    const [commentSubmitError, setCommentSubmitError] = useState(null);
 
     const canManageTicket =
         user?.role === "ADMIN" ||
@@ -60,19 +75,37 @@ const TicketDetailPage = () => {
                 setLoading(true);
                 setError(null);
 
+                // 1. Laadime pileti
                 const data = await getTicketById(id);
                 setTicket(data);
+
+                // 2. Laadime kommentaarid
+                setCommentsLoading(true);
+                setCommentsError(null);
+                setComments([]);
+
+                try {
+                    const commentsData = await getTicketComments(id);
+                    setComments(commentsData);
+
+                } catch (error) {
+                    console.error("GET COMMENTS ERROR:", error);
+
+                    setCommentsError("Failed to load comments");
+
+                } finally {
+                    setCommentsLoading(false);
+                }
+
             } catch (error) {
-                console.error(
-                    "GET TICKET ERROR:",
-                    error.message
-                );
+                console.error("GET TICKET ERROR:", error.message);
 
                 setError(
                     error.response?.status === 404
                         ? "Ticket not found"
                         : "Failed to load ticket"
                 );
+
             } finally {
                 setLoading(false);
             }
@@ -136,6 +169,40 @@ const TicketDetailPage = () => {
         }
     };
 
+    const handleAddComment = async () => {
+        const content = newComment.trim();
+
+        if (!content || sendingComment) {
+            return;
+        }
+
+        try {
+            setSendingComment(true);
+            setCommentSubmitError(null);
+
+            const createdComment = await createTicketComment(id, content);
+
+            // Lisame uue kommentaari kohe olemasolevasse nimekirja
+            setComments((prevComments) => [
+                ...prevComments,
+                createdComment
+            ]);
+
+            // Tühjendame tekstivälja
+            setNewComment("");
+
+        } catch (error) {
+            console.error("CREATE COMMENT ERROR:", error);
+
+            setCommentSubmitError(
+                error.response?.data?.message || "Failed to add comment"
+            );
+
+        } finally {
+            setSendingComment(false);
+        }
+    };
+
     const statusColors = {
         OPEN: "info",
         IN_PROGRESS: "primary",
@@ -169,6 +236,8 @@ const TicketDetailPage = () => {
     if (!ticket) {
         return null;
     }
+
+    console.log("TICKET COMMENTS:", comments);alignItems:
 
     return (
         <Box sx={{ textAlign: "left" }}>
@@ -384,6 +453,117 @@ const TicketDetailPage = () => {
                                 {assigning ? "Assigning..." : "Assign to me"}
                             </Button>
                         )}
+                    </CardContent>
+                </Card>
+
+                <Card sx={{ mt: 3 }}>
+                    <CardContent>
+                        <Typography variant="h6" sx={{ mb: 2 }}>
+                            Comments
+                        </Typography>
+
+                        {commentsLoading && (
+                            <CircularProgress size={24} />
+                        )}
+
+                        {commentsError && (
+                            <Alert severity="error" sx={{ mb: 2 }}>
+                                {commentsError}
+                            </Alert>
+                        )}
+
+                        {!commentsLoading && !commentsError && comments.length === 0 && (
+                            <Typography color="text.secondary">
+                                No comments yet.
+                            </Typography>
+                        )}
+
+                        {!commentsLoading && comments.map((comment) => (
+                            <Box key={comment.id} sx={{ mb: 2 }}>
+                                <Stack
+                                    direction="row"
+                                    spacing={2}
+                                    sx={{
+                                        alignItems: "center",
+                                        mb: 1,
+                                    }}
+                                >
+                                    <Typography variant="subtitle2">
+                                        {comment.author?.name || "Unknown user"}
+                                    </Typography>
+
+                                    <Chip
+                                        label={comment.author?.role || "USER"}
+                                        size="small"
+                                        variant="outlined"
+                                    />
+
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                    >
+                                        {new Date(comment.createdAt).toLocaleString()}
+                                    </Typography>
+                                </Stack>
+
+                                <Typography
+                                    variant="body2"
+                                    sx={{ whiteSpace: "pre-wrap" }}
+                                >
+                                    {comment.content}
+                                </Typography>
+
+                                <Divider sx={{ mt: 2 }} />
+                            </Box>
+                        ))}
+                        <Divider sx={{ my: 3 }} />
+
+                        <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                            Add a comment
+                        </Typography>
+
+                        {commentSubmitError && (
+                            <Alert severity="error" sx={{ mb: 2 }}>
+                                {commentSubmitError}
+                            </Alert>
+                        )}
+
+                        <TextField
+                            label="Write a comment"
+                            multiline
+                            minRows={3}
+                            fullWidth
+                            value={newComment}
+                            onChange={(event) => setNewComment(event.target.value)}
+                            disabled={sendingComment}
+                            slotProps={{
+                                htmlInput: {
+                                    maxLength: 2000
+                                }
+                            }}
+                            sx={{ mb: 2 }}
+                        />
+
+                        <Box
+                            sx={{
+                                display: "flex",
+                                justifyContent: "flex-end",
+                                alignItems: "center",
+                                gap: 2,
+                            }}
+                        >
+                            {sendingComment && (
+                                <CircularProgress size={22} />
+                            )}
+
+                            <Button
+                                variant="contained"
+                                onClick={handleAddComment}
+                                disabled={!newComment.trim() || sendingComment}
+                            >
+                                {sendingComment ? "Sending..." : "Add Comment"}
+                            </Button>
+                        </Box>
                     </CardContent>
                 </Card>
 

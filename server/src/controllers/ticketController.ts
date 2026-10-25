@@ -287,23 +287,26 @@ export const updateTicket = async (
             return;
         }
 
-        // 3. PATCH peab sisaldama vähemalt ühte muudetavat välja
-        if (Object.keys(bodyResult.data).length === 0) {
-            res.status(400).json({
-                message: "No fields provided for update",
+        
+
+        const { id } = idResult.data;
+        const {version, ...data} = bodyResult.data;
+
+        const user = req.user;
+
+
+
+        if (!user) {
+            res.status(401).json({
+                message: "Authentication required",
             });
 
             return;
         }
 
-        const { id } = idResult.data;
-        const data = bodyResult.data;
-
-        const user = req.user;
-
-        if (!user) {
-            res.status(401).json({
-                message: "Authentication required",
+        if (Object.keys(data).length === 0) {
+            res.status(400).json({
+                message: "No fields provided for update",
             });
 
             return;
@@ -326,32 +329,7 @@ export const updateTicket = async (
 
             return;
         }
-
-        // CLOSED piletile ei saa uut tehnikut määrata,
-        // kui piletit sama päringuga uuesti ei avata.
-        if (
-            existingTicket.status === "CLOSED" &&
-            data.assignedToId != null &&
-            data.assignedToId !== existingTicket.assignedToId &&
-            data.status !== "OPEN"
-        ) {
-            res.status(409).json({
-                message: "Closed ticket must be reopened before assignment",
-            });
-            return;
-        }
-
-        if (
-            user.role === "TECHNICIAN" &&
-            existingTicket.assignedToId !== user.id
-        ) {
-            res.status(403).json({
-                message: "You can only update tickets assigned to you",
-            });
-
-            return;
-        }
-
+        
         if (
             user.role === "TECHNICIAN" &&
             (
@@ -409,34 +387,214 @@ export const updateTicket = async (
             }
         }
 
-        // 6. Uuenda Ticket
-        const updatedTicket = await prisma.ticket.update({
-            where: {
-                id,
-            },
+        // 6. Uuenda pilet ja salvesta staatuse muutmise ajalugu
+        // 6. Uuenda pilet versioonikontrolliga
+        const updatedTicket = await prisma.$transaction(async (tx) => {
 
-            data,
+            // Loeme pileti praeguse oleku tehingu sees
+            const currentTicket = await tx.ticket.findUnique({
+                where: {
+                    id,
+                },
+            });
 
-            include: {
-                createdBy: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        role: true,
-                    },
+            // Kui pilet puudub või versioon on muutunud
+            if (!currentTicket || currentTicket.version !== version) {
+                return null;
+            }
+
+            // Kontrollime tehniku õigust pileti hetkeoleku põhjal
+            if (
+                user.role === "TECHNICIAN" &&
+                currentTicket.assignedToId !== user.id
+            ) {
+                return {
+                    type: "FORBIDDEN" as const,
+                };
+            }
+
+            // CLOSED piletile ei saa uut tehnikut määrata,
+            // kui piletit sama päringuga uuesti ei avata.
+            if (
+                currentTicket.status === "CLOSED" &&
+                data.assignedToId != null &&
+                data.assignedToId !== currentTicket.assignedToId &&
+                data.status !== "OPEN"
+            ) {
+                return {
+                    type: "CLOSED_ASSIGNMENT" as const,
+                };
+            }
+
+            // Kontrollime, kas vähemalt üks saadetud väli muutub
+            const hasChanges = Object.entries(data).some(([key, value]) => {
+                const field = key as keyof typeof data;
+
+                return currentTicket[field] !== value;
+            });
+
+            // Kui tegelikke muudatusi pole, jätame uuendamise vahele
+            if (!hasChanges) {
+                return {
+                    type: "NO_CHANGES" as const,
+                    ticket: await tx.ticket.findUniqueOrThrow({
+                        where: { id },
+                        include: {
+                            createdBy: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    email: true,
+                                    role: true,
+                                },
+                            },
+                            assignedTo: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    email: true,
+                                    role: true,
+                                },
+                            },
+                        },
+                    }),
+                };
+            }
+
+            // Uuendame ainult juhul, kui versioon pole muutunud
+            const updateResult = await tx.ticket.updateMany({
+                where: {
+                    id,
+                    version,
                 },
 
-                assignedTo: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        role: true,
+                data: {
+                    ...data,
+                    version: {
+                        increment: 1,
                     },
                 },
-            },
+            });
+
+            // Kui ühtegi rida ei uuendatud, on tekkinud konflikt
+            if (updateResult.count === 0) {
+                return null;
+            }
+
+            // Loeme uuendatud pileti koos seotud kasutajatega
+            const updated = await tx.ticket.findUniqueOrThrow({
+                where: {
+                    id,
+                },
+
+                include: {
+                    createdBy: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            role: true,
+                        },
+                    },
+
+                    assignedTo: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            role: true,
+                        },
+                    },
+                },
+            });
+
+            // Salvestame staatuse muutmise ajaloo
+            if (
+                data.status !== undefined &&
+                currentTicket.status !== updated.status
+            ) {
+                await tx.ticketActivity.create({
+                    data: {
+                        ticketId: id,
+                        actorId: user.id,
+                        action: "STATUS_CHANGED",
+                        field: "status",
+                        oldValue: currentTicket.status,
+                        newValue: updated.status,
+                    },
+                });
+            }
+
+            // Salvestame prioriteedi muutmise ajaloo
+            if (
+                data.priority !== undefined &&
+                currentTicket.priority !== updated.priority
+            ) {
+                await tx.ticketActivity.create({
+                    data: {
+                        ticketId: id,
+                        actorId: user.id,
+                        action: "PRIORITY_CHANGED",
+                        field: "priority",
+                        oldValue: currentTicket.priority,
+                        newValue: updated.priority,
+                    },
+                });
+            }
+
+            // Salvestame tehniku määramise muutmise ajaloo
+            if (
+                data.assignedToId !== undefined &&
+                currentTicket.assignedToId !== updated.assignedToId
+            ) {
+                await tx.ticketActivity.create({
+                    data: {
+                        ticketId: id,
+                        actorId: user.id,
+                        action: "ASSIGNMENT_CHANGED",
+                        field: "assignedToId",
+                        oldValue: currentTicket.assignedToId,
+                        newValue: updated.assignedToId,
+                    },
+                });
+            }
+
+            return updated;
         });
+
+        // Kui versioon oli vahepeal muutunud
+        if (!updatedTicket) {
+            res.status(409).json({
+                message: "Ticket was modified by another user. Please refresh and try again.",
+            });
+
+            return;
+        }
+
+        if ("type" in updatedTicket && updatedTicket.type === "FORBIDDEN") {
+            res.status(403).json({
+                message: "You can only update tickets assigned to you",
+            });
+
+            return;
+        }
+
+        if (
+            "type" in updatedTicket &&
+            updatedTicket.type === "CLOSED_ASSIGNMENT"
+        ) {
+            res.status(409).json({
+                message: "Closed ticket must be reopened before assignment",
+            });
+
+            return;
+        }
+
+        // Kui tegelikke muudatusi ei toimunud
+        if ("type" in updatedTicket && updatedTicket.type === "NO_CHANGES") {
+            res.status(200).json(updatedTicket.ticket);
+            return;
+        }
 
         res.status(200).json(updatedTicket);
     } catch (error) {
@@ -444,6 +602,104 @@ export const updateTicket = async (
 
         res.status(500).json({
             message: "Failed to update ticket",
+        });
+    }
+};
+
+export const getTicketActivities = async (
+    req: Request<{ id: string }>,
+    res: Response
+): Promise<void> => {
+    try {
+        // 1. Kontrollime pileti UUID-d
+        const idResult = ticketIdSchema.safeParse(req.params);
+
+        if (!idResult.success) {
+            res.status(400).json({
+                message: "Invalid ticket ID",
+                errors: idResult.error.issues,
+            });
+            return;
+        }
+
+        // 2. Kontrollime sisselogimist
+        const user = req.user;
+
+        if (!user) {
+            res.status(401).json({
+                message: "Authentication required",
+            });
+            return;
+        }
+
+        const { id } = idResult.data;
+
+        // 3. Kontrollime pileti olemasolu ja vaatamisõigust
+        const ticket = await prisma.ticket.findUnique({
+            where: { id },
+            select: {
+                id: true,
+                createdById: true,
+                assignedToId: true,
+            },
+        });
+
+        if (!ticket) {
+            res.status(404).json({
+                message: "Ticket not found",
+            });
+            return;
+        }
+
+        // Tavakasutaja näeb ainult enda loodud pileteid
+        if (
+            user.role === "USER" &&
+            ticket.createdById !== user.id
+        ) {
+            res.status(404).json({
+                message: "Ticket not found",
+            });
+            return;
+        }
+
+        // Tehnik näeb ainult talle määratud pileteid
+        if (
+            user.role === "TECHNICIAN" &&
+            ticket.assignedToId !== user.id
+        ) {
+            res.status(403).json({
+                message: "You can only view activities of tickets assigned to you",
+            });
+            return;
+        }
+
+        // 4. Loeme tegevuste ajaloo
+        const activities = await prisma.ticketActivity.findMany({
+            where: {
+                ticketId: id,
+            },
+            include: {
+                actor: {
+                    select: {
+                        id: true,
+                        name: true,
+                        role: true,
+                    },
+                },
+            },
+            orderBy: [
+                { createdAt: "asc" },
+                { id: "asc" },
+            ],
+        });
+
+        res.status(200).json(activities);
+
+    } catch (error) {
+        console.error("GET TICKET ACTIVITIES ERROR:", error);
+
+        res.status(500).json({
+            message: "Failed to get ticket activities",
         });
     }
 };
