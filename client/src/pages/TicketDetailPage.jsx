@@ -5,7 +5,8 @@ import {
     updateTicket,
     assignTicketToMe,
     getTicketComments,
-    createTicketComment
+    createTicketComment,
+    getTicketActivities
 } from "../api/ticketApi.js";
 
 import { useAuth } from "../context/AuthContext.jsx";
@@ -53,11 +54,24 @@ const TicketDetailPage = () => {
     const [sendingComment, setSendingComment] = useState(false);
     const [commentSubmitError, setCommentSubmitError] = useState(null);
 
+    const [activities, setActivities] = useState([]);
+
     const canManageTicket =
         user?.role === "ADMIN" ||
         (
             user?.role === "TECHNICIAN" &&
             ticket?.assignedToId === user.id
+        );
+
+    const canViewComments =
+        user?.role === "ADMIN" ||
+        (
+            user?.role === "TECHNICIAN" &&
+            ticket?.assignedToId === user.id
+        ) ||
+        (
+            user?.role === "USER" &&
+            ticket?.createdById === user.id
         );
 
     const canAssignToMe =
@@ -79,14 +93,54 @@ const TicketDetailPage = () => {
                 const data = await getTicketById(id);
                 setTicket(data);
 
+                // Kontrollime tegevuste ajaloo vaatamise õigust
+                const canViewActivities =
+                    user?.role === "ADMIN" ||
+                    (
+                        user?.role === "TECHNICIAN" &&
+                        data.assignedToId === user.id
+                    ) ||
+                    (
+                        user?.role === "USER" &&
+                        data.createdById === user.id
+                    );
+
+                setActivities([]);
+
+                if (canViewActivities) {
+                    try {
+                        const activitiesData = await getTicketActivities(id);
+
+                        setActivities(activitiesData);
+
+                        console.log("TICKET ACTIVITIES:", activitiesData);
+
+                    } catch (error) {
+                        console.error("GET ACTIVITIES ERROR:", error);
+                    }
+                }
+
                 // 2. Laadime kommentaarid
                 setCommentsLoading(true);
                 setCommentsError(null);
                 setComments([]);
 
                 try {
-                    const commentsData = await getTicketComments(id);
-                    setComments(commentsData);
+                    const allowed =
+                        user?.role === "ADMIN" ||
+                        (
+                            user?.role === "TECHNICIAN" &&
+                            data.assignedToId === user.id
+                        ) ||
+                        (
+                            user?.role === "USER" &&
+                            data.createdById === user.id
+                        );
+
+                    if (allowed) {
+                        const commentsData = await getTicketComments(id);
+                        setComments(commentsData);
+                    }
 
                 } catch (error) {
                     console.error("GET COMMENTS ERROR:", error);
@@ -112,6 +166,7 @@ const TicketDetailPage = () => {
         };
 
         loadTicket();
+        
     }, [id]);
 
     const handleStatusChange = async (event) => {
@@ -155,6 +210,25 @@ const TicketDetailPage = () => {
             const updatedTicket = await assignTicketToMe(ticket.id);
 
             setTicket(updatedTicket);
+
+            // Kui pileti määramine õnnestus,
+            // laadime kohe ka kommentaarid
+            setCommentsLoading(true);
+            setCommentsError(null);
+
+            try {
+                const commentsData = await getTicketComments(ticket.id);
+
+                setComments(commentsData);
+
+            } catch (error) {
+                console.error("GET COMMENTS ERROR:", error);
+
+                setCommentsError("Failed to load comments");
+
+            } finally {
+                setCommentsLoading(false);
+            }
 
         } catch (error) {
             console.error("ASSIGN TO ME ERROR:", error);
@@ -462,108 +536,122 @@ const TicketDetailPage = () => {
                             Comments
                         </Typography>
 
-                        {commentsLoading && (
-                            <CircularProgress size={24} />
-                        )}
-
-                        {commentsError && (
-                            <Alert severity="error" sx={{ mb: 2 }}>
-                                {commentsError}
+                        {!canViewComments && (
+                            <Alert severity="info" sx={{ mb: 2 }}>
+                                {user?.role === "TECHNICIAN" && ticket.assignedToId === null
+                                    ? "Assign this ticket to yourself to view and add comments."
+                                    : "You don't have permission to view comments on this ticket."}
                             </Alert>
                         )}
 
-                        {!commentsLoading && !commentsError && comments.length === 0 && (
-                            <Typography color="text.secondary">
-                                No comments yet.
-                            </Typography>
-                        )}
+                        {canViewComments && (
+                            <>
+                                {commentsLoading && (
+                                    <CircularProgress size={24} />
+                                )}
 
-                        {!commentsLoading && comments.map((comment) => (
-                            <Box key={comment.id} sx={{ mb: 2 }}>
-                                <Stack
-                                    direction="row"
-                                    spacing={2}
-                                    sx={{
-                                        alignItems: "center",
-                                        mb: 1,
-                                    }}
-                                >
-                                    <Typography variant="subtitle2">
-                                        {comment.author?.name || "Unknown user"}
+                                {commentsError && (
+                                    <Alert severity="error" sx={{ mb: 2 }}>
+                                        {commentsError}
+                                    </Alert>
+                                )}
+
+                                {!commentsLoading && !commentsError && comments.length === 0 && (
+                                    <Typography color="text.secondary">
+                                        No comments yet.
                                     </Typography>
+                                )}
 
-                                    <Chip
-                                        label={comment.author?.role || "USER"}
-                                        size="small"
-                                        variant="outlined"
-                                    />
+                                {!commentsLoading && comments.map((comment) => (
+                                    <Box key={comment.id} sx={{ mb: 2 }}>
+                                        <Stack
+                                            direction="row"
+                                            spacing={2}
+                                            sx={{
+                                                alignItems: "center",
+                                                mb: 1,
+                                            }}
+                                        >
+                                            <Typography variant="subtitle2">
+                                                {comment.author?.name || "Unknown user"}
+                                            </Typography>
 
-                                    <Typography
-                                        variant="caption"
-                                        color="text.secondary"
-                                    >
-                                        {new Date(comment.createdAt).toLocaleString()}
-                                    </Typography>
-                                </Stack>
+                                            <Chip
+                                                label={comment.author?.role || "USER"}
+                                                size="small"
+                                                variant="outlined"
+                                            />
 
-                                <Typography
-                                    variant="body2"
-                                    sx={{ whiteSpace: "pre-wrap" }}
-                                >
-                                    {comment.content}
+                                            <Typography
+                                                variant="caption"
+                                                color="text.secondary"
+                                            >
+                                                {new Date(comment.createdAt).toLocaleString()}
+                                            </Typography>
+                                        </Stack>
+
+                                        <Typography
+                                            variant="body2"
+                                            sx={{ whiteSpace: "pre-wrap" }}
+                                        >
+                                            {comment.content}
+                                        </Typography>
+
+                                        <Divider sx={{ mt: 2 }} />
+                                    </Box>
+                                ))}
+                                <Divider sx={{ my: 3 }} />
+
+                                <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                                    Add a comment
                                 </Typography>
 
-                                <Divider sx={{ mt: 2 }} />
-                            </Box>
-                        ))}
-                        <Divider sx={{ my: 3 }} />
+                                {commentSubmitError && (
+                                    <Alert severity="error" sx={{ mb: 2 }}>
+                                        {commentSubmitError}
+                                    </Alert>
+                                )}
 
-                        <Typography variant="subtitle1" sx={{ mb: 2 }}>
-                            Add a comment
-                        </Typography>
+                                <TextField
+                                    label="Write a comment"
+                                    multiline
+                                    minRows={3}
+                                    fullWidth
+                                    value={newComment}
+                                    onChange={(event) => setNewComment(event.target.value)}
+                                    disabled={sendingComment}
+                                    slotProps={{
+                                        htmlInput: {
+                                            maxLength: 2000
+                                        }
+                                    }}
+                                    sx={{ mb: 2 }}
+                                />
 
-                        {commentSubmitError && (
-                            <Alert severity="error" sx={{ mb: 2 }}>
-                                {commentSubmitError}
-                            </Alert>
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        justifyContent: "flex-end",
+                                        alignItems: "center",
+                                        gap: 2,
+                                    }}
+                                >
+                                    {sendingComment && (
+                                        <CircularProgress size={22} />
+                                    )}
+
+                                    <Button
+                                        variant="contained"
+                                        onClick={handleAddComment}
+                                        disabled={!newComment.trim() || sendingComment}
+                                    >
+                                        {sendingComment ? "Sending..." : "Add Comment"}
+                                    </Button>
+                                </Box>
+                            </>
                         )}
 
-                        <TextField
-                            label="Write a comment"
-                            multiline
-                            minRows={3}
-                            fullWidth
-                            value={newComment}
-                            onChange={(event) => setNewComment(event.target.value)}
-                            disabled={sendingComment}
-                            slotProps={{
-                                htmlInput: {
-                                    maxLength: 2000
-                                }
-                            }}
-                            sx={{ mb: 2 }}
-                        />
-
-                        <Box
-                            sx={{
-                                display: "flex",
-                                justifyContent: "flex-end",
-                                alignItems: "center",
-                                gap: 2,
-                            }}
-                        >
-                            {sendingComment && (
-                                <CircularProgress size={22} />
-                            )}
-
-                            <Button
-                                variant="contained"
-                                onClick={handleAddComment}
-                                disabled={!newComment.trim() || sendingComment}
-                            >
-                                {sendingComment ? "Sending..." : "Add Comment"}
-                            </Button>
-                        </Box>
+                        
                     </CardContent>
                 </Card>
 

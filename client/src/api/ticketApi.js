@@ -60,3 +60,12 @@ export const createTicketComment = async (ticketId, content) => {
 
     return response.data;
 };
+
+// Activities
+export const getTicketActivities = async (ticketId) => {
+    const response = await apiClient.get(
+        `/tickets/${ticketId}/activities`
+    );
+
+    return response.data;
+};

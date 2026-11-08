@@ -415,6 +415,7 @@ describe("Tickets API", () => {
                 .send({
                     title: "Updated title",
                     description: "Updated description",
+                    version: ticket.version,
                 });
 
             // 5. Kontrollime API vastust
@@ -422,6 +423,9 @@ describe("Tickets API", () => {
 
             expect(response.body.title).toBe("Updated title");
             expect(response.body.description).toBe("Updated description");
+
+            // Kontrollime, et versioon suurenes ühe võrra
+            expect(response.body.version).toBe(ticket.version + 1);
 
             // Prioriteet ei tohi muutuda
             expect(response.body.priority).toBe("LOW");
@@ -438,6 +442,7 @@ describe("Tickets API", () => {
             expect(updatedTicket?.title).toBe("Updated title");
             expect(updatedTicket?.description).toBe("Updated description");
             expect(updatedTicket?.priority).toBe("LOW");
+            expect(updatedTicket?.version).toBe(ticket.version + 1);
 
         } finally {
 
@@ -508,6 +513,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     title: "Unauthorized change",
+                    version: ticket.version,
                 });
 
             // Server peab ligipääsu keelama
@@ -590,6 +596,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     status: "RESOLVED",
+                    version: ticket.version,
                 });
 
             // Muutmine peab olema keelatud
@@ -678,11 +685,13 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     status: "IN_PROGRESS",
+                    version: ticket.version,
                 });
 
             // Kontrollime API vastust
             expect(response.status).toBe(200);
             expect(response.body.status).toBe("IN_PROGRESS");
+            expect(response.body.version).toBe(ticket.version + 1);
 
             // Kontrollime muudatust andmebaasis
             const updatedTicket = await prisma.ticket.findUnique({
@@ -775,6 +784,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     title: "Unauthorized title change",
+                    version: ticket.version,
                 });
 
             // Server peab muutmise keelama
@@ -874,6 +884,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     status: "IN_PROGRESS",
+                    version: ticket.version,
                 });
 
             // Server peab muutmise keelama
@@ -1621,6 +1632,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     assignedToId: technician.id,
+                    version: ticket.version,
                 });
 
             // 5. Kontrollime HTTP staatust
@@ -1634,6 +1646,8 @@ describe("Tickets API", () => {
                 name: "Test Technician",
                 role: "TECHNICIAN",
             });
+
+            expect(response.body.version).toBe(ticket.version + 1);
 
             // 7. Kontrollime andmebaasi
             const updatedTicket = await prisma.ticket.findUnique({
@@ -1727,6 +1741,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     assignedToId: regularUser.id,
+                    version: ticket.version,
                 });
 
             // 6. Kontrollime HTTP staatust
@@ -1752,6 +1767,9 @@ describe("Tickets API", () => {
             // Muud andmed peavad jääma samaks
             expect(unchangedTicket?.title).toBe("Computer not working");
             expect(unchangedTicket?.priority).toBe("HIGH");
+
+            // Ebaõnnestunud PATCH ei tohi versiooni suurendada
+            expect(unchangedTicket?.version).toBe(ticket.version);
 
         } finally {
 
@@ -1822,6 +1840,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     assignedToId: nonExistingUserId,
+                    version: ticket.version,
                 });
 
             // 6. Kontrollime HTTP staatust
@@ -2402,6 +2421,7 @@ describe("Tickets API", () => {
                 .set("Authorization", `Bearer ${token}`)
                 .send({
                     assignedToId: technician.id,
+                    version: ticket.version,
                 });
 
             // 6. Kontrollime API vastust
@@ -2498,6 +2518,7 @@ describe("Tickets API", () => {
                 .send({
                     status: "OPEN",
                     assignedToId: technician.id,
+                    version: ticket.version,
                 });
 
             // 6. Kontrollime API vastust
@@ -2509,6 +2530,8 @@ describe("Tickets API", () => {
             // Kontrollime ka seotud tehniku andmeid
             expect(response.body.assignedTo.id).toBe(technician.id);
             expect(response.body.assignedTo.role).toBe("TECHNICIAN");
+
+            expect(response.body.version).toBe(ticket.version + 1);
 
             // 7. Kontrollime andmebaasi
             const updatedTicket = await prisma.ticket.findUnique({
